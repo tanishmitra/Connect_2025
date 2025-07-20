@@ -1,27 +1,61 @@
 import React, { useState } from 'react';
-import Login from './components/Login.jsx';
+import Login from './components/Login';
+import SignUp from './components/Signup';
 
 function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userData, setUserData] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showSignup, setShowSignup] = useState(false);
+  const [user, setUser] = useState(null);
 
-  const handleLogin = ({ username, password }) => {
-    console.log('Login submitted:', username, password);
+  const handleLogin = (credentials) => {
+    // For now, just simulate login success
+    console.log('Login submitted:', credentials);
+    setUser(credentials.userId || credentials.username);
+    setIsLoggedIn(true);
+  };
 
-    // Simulate login success
-    setUserData({ username });
-    setIsLoggedIn(true);
-  };
+  const handleSignup = (newUser) => {
+    // For now, just simulate signup success
+    console.log('Signup submitted:', newUser);
+    setUser(newUser.userId);
+    setIsLoggedIn(true);
+  };
 
-  return (
-    <div className="app">
-      {isLoggedIn ? (
-        <h2>Welcome, {userData.username}!</h2>
-      ) : (
-        <Login onLogin={handleLogin} />
-      )}
-    </div>
-  );
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    setUser(null);
+  };
+
+  return (
+    <div>
+      {!isLoggedIn ? (
+        <>
+          {showSignup ? (
+            <>
+              <SignUp onSignup={handleSignup} />
+              <p>
+                Already have an account?{' '}
+                <button onClick={() => setShowSignup(false)}>Login here</button>
+              </p>
+            </>
+          ) : (
+            <>
+              <Login onLogin={handleLogin} />
+              <p>
+                Don't have an account?{' '}
+                <button onClick={() => setShowSignup(true)}>Sign up</button>
+              </p>
+            </>
+          )}
+        </>
+      ) : (
+        <div>
+          <h2>Welcome, {user}!</h2>
+          <button onClick={handleLogout}>Logout</button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default App;
