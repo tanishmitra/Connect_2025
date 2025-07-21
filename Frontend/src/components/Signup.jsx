@@ -16,12 +16,12 @@ function SignUp({ onSignup }) {
         }
 
         try {
-            const response = await axios.post('http://localhost:8787/api/signup', {
-                userId,
-                password,
+            const response = await axios.post('http://localhost:8787/signup', {
+                UserName: userId,
+                UserPassword: password,
             });
 
-            if (response.status === 201) {
+            if (response.status === 200) {
                 onSignup({ userId });
             } else {
                 setError('Signup failed.');

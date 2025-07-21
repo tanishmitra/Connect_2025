@@ -36,6 +36,22 @@ def login():
         else:
             return jsonify({"Message": "FailureLogin"})
 
+@app.route('/signup', methods=['POST'])
+def signup():
+    data = request.get_json()
+    username = data.get('UserName')
+    password = data.get('UserPassword')
+
+    with engine.connect() as conn:
+        stmt = select(auth_table).where(auth_table.c.UserName == username)
+        existing_user = conn.execute(stmt).fetchone()
+
+        if existing_user:
+            return jsonify({"Message": "UserAlreadyExists"})
+
+        conn.execute(auth_table.insert().values(UserName=username, UserPassword=password))
+        return jsonify({"Message": "SuccessSignup"})
+
 
 # Run the app
 if __name__ == '__main__':
