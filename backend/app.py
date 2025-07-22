@@ -47,10 +47,10 @@ def signup():
         existing_user = conn.execute(stmt).fetchone()
 
         if existing_user:
-            return jsonify({"Message": "UserAlreadyExists"})
+            return jsonify({"Message": "UserAlreadyExists"}), 409
 
         conn.execute(auth_table.insert().values(UserName=username, UserPassword=password))
-        return jsonify({"Message": "SuccessSignup"})
+        return jsonify({"Message": "SuccessSignup"}), 201
 
 
 # Run the app
