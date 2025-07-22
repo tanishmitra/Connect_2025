@@ -35,7 +35,7 @@ function SignUp({ onSignup }) {
         <div className="signup-container">
             <h2>Sign Up</h2>
             <form onSubmit={handleSubmit}>
-                <label>User ID:</label><br />
+                <label>Username:</label><br />
                 <input type="text" value={userId} onChange={(e) => setUserId(e.target.value)} /><br /><br />
                 <label>Password:</label><br />
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /><br /><br />

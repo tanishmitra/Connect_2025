@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, Table, Column, String, MetaData, select
 engine = create_engine('sqlite:///auth.db', echo=True)
 metadata = MetaData()
 
-# Define the AuthTable (same as in app.py)
+# Define the AuthTable
 auth_table = Table('AuthTable', metadata,
                    Column('UserName', String, primary_key=True),
                    Column('UserPassword', String))

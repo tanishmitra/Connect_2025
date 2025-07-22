@@ -21,13 +21,14 @@ function Login({ onLogin }) {
                 UserPassword: password,
             });
 
-            if (response.status === 200) {
+            const msg = response.data.Message;
+            if (msg ==="SuccessLogin") {
                 onLogin({ username });
             } else {
-                setError('Login failed.');
+                setError("Invalid username or password.");
             }
         } catch (err) {
-            setError('Login error: ' + (err.response?.data?.message || err.message));
+            setError("Network or server error: " + err.message);
         }
     };
 
