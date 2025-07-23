@@ -4,7 +4,7 @@ from sqlalchemy import create_engine, Table, Column, String, MetaData, select
 engine = create_engine('sqlite:///auth.db', echo=True)
 metadata = MetaData()
 
-# Define the AuthTable
+# Define the AuthTable (same as in main.py)
 auth_table = Table('AuthTable', metadata,
                    Column('UserName', String, primary_key=True),
                    Column('UserPassword', String))
@@ -18,7 +18,7 @@ new_users = [
 ]
 
 # Insert only if user doesn't exist
-with engine.connect() as conn:
+with engine.begin() as conn:  # begin = connect + auto-commit
     for user in new_users:
         stmt = select(auth_table).where(auth_table.c.UserName == user["UserName"])
         result = conn.execute(stmt).fetchone()
@@ -28,4 +28,5 @@ with engine.connect() as conn:
             conn.execute(auth_table.insert().values(user))
             print(f"Inserted user '{user['UserName']}'.")
 
-print("Done seeding users.")
+print(" Done seeding users.")
+
