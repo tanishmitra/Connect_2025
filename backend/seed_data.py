@@ -18,7 +18,7 @@ new_users = [
 ]
 
 # Insert only if user doesn't exist
-with engine.begin() as conn:  # begin = connect + auto-commit
+with engine.begin() as conn:
     for user in new_users:
         stmt = select(auth_table).where(auth_table.c.UserName == user["UserName"])
         result = conn.execute(stmt).fetchone()
