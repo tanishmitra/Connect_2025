@@ -1,9 +1,20 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 from sqlalchemy import create_engine, Table, Column, String, MetaData, select
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.responses import JSONResponse
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
+
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # You can restrict to specific domains in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # SQLite DB connection
 engine = create_engine('sqlite:///auth.db', echo=True)
@@ -17,42 +28,23 @@ auth_table = Table('AuthTable', metadata,
 # Create the table if it doesn't exist
 metadata.create_all(engine)
 
-# POST /login endpoint
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    username = data.get('UserName')
-    password = data.get('UserPassword')
+# Pydantic schema for input validation
+class User(BaseModel):
+    UserName: str
+    UserPassword: str
 
-    with engine.connect() as conn:
-        stmt = select(auth_table).where(
-            auth_table.c.UserName == username,
-            auth_table.c.UserPassword == password
-        )
-        result = conn.execute(stmt).fetchone()
+# POST /signup endpoint
+@app.post("/signup")
+async def signup(user: User):
+    try:
+        with engine.begin() as conn:  # auto-commits
+            conn.execute(auth_table.insert().values(
+                UserName=user.UserName,
+                UserPassword=user.UserPassword
+            ))
+        return JSONResponse(content={"Message": "SignupSuccess"}, status_code=201)
 
-        if result:
-            return jsonify({"Message": "SuccessLogin"})
-        else:
-            return jsonify({"Message": "FailureLogin"})
+    except SQLAlchemyError as e:
+        print("Signup failed:", e)
+        return JSONResponse(content={"Message": "SignupFailed"}, status_code=500)
 
-@app.route('/signup', methods=['POST'])
-def signup():
-    data = request.get_json()
-    username = data.get('UserName')
-    password = data.get('UserPassword')
-
-    with engine.connect() as conn:
-        stmt = select(auth_table).where(auth_table.c.UserName == username)
-        existing_user = conn.execute(stmt).fetchone()
-
-        if existing_user:
-            return jsonify({"Message": "UserAlreadyExists"}), 409
-
-        conn.execute(auth_table.insert().values(UserName=username, UserPassword=password))
-        return jsonify({"Message": "SuccessSignup"}), 201
-
-
-# Run the app
-if __name__ == '__main__':
-    app.run(port=8787)
