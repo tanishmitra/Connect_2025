@@ -21,13 +21,17 @@ function SignUp({ onSignup }) {
                 UserPassword: password,
             });
 
-            if (response.status === 200) {
+            const msg = response.data.Message;
+
+            if (msg === "SuccessSignup") {
                 onSignup({ userId });
+            } else if (msg === "UserAlreadyExists") {
+                setError('User already exists');
             } else {
-                setError('Signup failed.');
+                setError('Signup failed');
             }
         } catch (err) {
-            setError('Signup error: ' + (err.response?.data?.message || err.message));
+            setError('Signup error: ' + (err.response?.data?.Message || err.message));
         }
     };
 
