@@ -1,22 +1,19 @@
 import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Dashboard from './components/Dashboard';
 import Login from './components/Login';
 import SignUp from './components/Signup';
 
 function App() {
     const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [showSignup, setShowSignup] = useState(false);
     const [user, setUser] = useState(null);
 
     const handleLogin = (credentials) => {
-        //Simulate login success
-        console.log('Login submitted:', credentials);
         setUser(credentials.userId || credentials.username);
         setIsLoggedIn(true);
     };
 
     const handleSignup = (newUser) => {
-        //Simulate signup success
-        console.log('Signup submitted:', newUser);
         setUser(newUser.userId);
         setIsLoggedIn(true);
     };
@@ -27,34 +24,22 @@ function App() {
     };
 
     return (
-        <div>
-            {!isLoggedIn ? (
-                <>
-                    {showSignup ? (
-                        <>
-                            <SignUp onSignup={handleSignup} />
-                            <p>
-                                Already have an account?{' '}
-                                <button onClick={() => setShowSignup(false)}>Login here</button>
-                            </p>
-                        </>
-                    ) : (
-                        <>
-                            <Login onLogin={handleLogin} />
-                            <p>
-                                Don't have an account?{' '}
-                                <button onClick={() => setShowSignup(true)}>Sign up</button>
-                            </p>
-                        </>
-                    )}
-                </>
-            ) : (
-                <div>
-                    <h2>Welcome, {user}!</h2>
-                    <button onClick={handleLogout}>Logout</button>
-                </div>
-            )}
-        </div>
+        <Router>
+            <Routes>
+                <Route path="/login" element={<Login onLogin={handleLogin} />} />
+                <Route path="/signup" element={<SignUp onSignup={handleSignup} />} />
+                <Route
+                    path="/dashboard"
+                    element={
+                        isLoggedIn ? (
+                            <Dashboard user={user} onLogout={handleLogout} />
+                        ) : (
+                            <Navigate to="/login" />
+                        )
+                    }
+                />
+            </Routes>
+        </Router>
     );
 }
 
