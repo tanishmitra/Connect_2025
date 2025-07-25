@@ -73,4 +73,4 @@ with engine.begin() as conn:
             conn.execute(device_table.insert().values(IP=device["IP"], SiteID=site_id))
             print(f"Inserted Device: {device['IP']}")
 
-print("✅ Seeding complete.")
+print("Seeding complete.")
