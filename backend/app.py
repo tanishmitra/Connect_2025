@@ -1,58 +1,73 @@
-from flask import Flask, request, jsonify
-from flask_cors import CORS
-from sqlalchemy import create_engine, Table, Column, String, MetaData, select
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, ForeignKey, select, delete
+from sqlalchemy.exc import SQLAlchemyError
+from starlette.responses import JSONResponse
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
 
-# SQLite DB connection
-engine = create_engine('sqlite:///auth.db', echo=True)
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Update this in production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# SQLite database setup
+engine = create_engine("sqlite:///auth.db", echo=True)
 metadata = MetaData()
 
-# Define AuthTable schema
-auth_table = Table('AuthTable', metadata,
-                   Column('UserName', String, primary_key=True),
-                   Column('UserPassword', String))
+# Define tables
+region_table = Table(
+    "Region", metadata,
+    Column("RegionID", Integer, primary_key=True, autoincrement=True),
+    Column("RegionName", String, unique=True, nullable=False)
+)
 
-# Create the table if it doesn't exist
+site_table = Table(
+    "Site", metadata,
+    Column("SiteID", Integer, primary_key=True, autoincrement=True),
+    Column("RegionID", Integer, ForeignKey("Region.RegionID", ondelete="CASCADE"), nullable=False),
+    Column("SiteName", String, nullable=False),
+    Column("SiteStatus", String, default="active")
+)
+
+device_table = Table(
+    "Device", metadata,
+    Column("IP", String, primary_key=True),
+    Column("SiteID", Integer, ForeignKey("Site.SiteID", ondelete="CASCADE"), nullable=False)
+)
+
+# Create tables if not exist
 metadata.create_all(engine)
 
-# POST /login endpoint
-@app.route('/login', methods=['POST'])
-def login():
-    data = request.get_json()
-    username = data.get('UserName')
-    password = data.get('UserPassword')
+# Pydantic model for region input
+class RegionIn(BaseModel):
+    Name: str
 
-    with engine.connect() as conn:
-        stmt = select(auth_table).where(
-            auth_table.c.UserName == username,
-            auth_table.c.UserPassword == password
-        )
-        result = conn.execute(stmt).fetchone()
+#  Add Region
+@app.post("/nmm/addRegion")
+async def add_region(region: RegionIn):
+    try:
+        with engine.begin() as conn:
+            conn.execute(region_table.insert().values(RegionName=region.Name))
+        return JSONResponse(content={"Message": "RegionAdded"}, status_code=201)
+    except SQLAlchemyError as e:
+        print("AddRegion failed:", e)
+        raise HTTPException(status_code=500, detail="RegionAddFailed")
 
-        if result:
-            return jsonify({"Message": "SuccessLogin"})
-        else:
-            return jsonify({"Message": "FailureLogin"})
-
-@app.route('/signup', methods=['POST'])
-def signup():
-    data = request.get_json()
-    username = data.get('UserName')
-    password = data.get('UserPassword')
-
-    with engine.begin() as conn:
-        stmt = select(auth_table).where(auth_table.c.UserName == username)
-        existing_user = conn.execute(stmt).fetchone()
-
-        if existing_user:
-            return jsonify({"Message": "UserAlreadyExists"}), 409
-
-        conn.execute(auth_table.insert().values(UserName=username, UserPassword=password))
-        return jsonify({"Message": "SuccessSignup"}), 201
-
-
-# Run the app
-if __name__ == '__main__':
-    app.run(port=8787)
+#  Delete Region by ID
+@app.delete("/nmm/deleteRegion/{region_id}")
+async def delete_region(region_id: int):
+    try:
+        with engine.begin() as conn:
+            result = conn.execute(delete(region_table).where(region_table.c.RegionID == region_id))
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="RegionNotFound")
+        return {"Message": "RegionDeleted"}
+    except SQLAlchemyError as e:
+        print("DeleteRegion failed:", e)
+        raise HTTPException(status_code=500, detail="RegionDeleteFailed")
