@@ -24,6 +24,7 @@ function SignUp({ onSignup }) {
             const msg = response.data.Message;
 
             if (msg === "SuccessSignup") {
+                setError('');
                 onSignup({ userId });
             } else if (msg === "UserAlreadyExists") {
                 setError('User already exists');
@@ -33,6 +34,7 @@ function SignUp({ onSignup }) {
         } catch (err) {
             setError('Signup error: ' + (err.response?.data?.Message || err.message));
         }
+        setLoading(false);
     };
 
     return (
@@ -44,7 +46,7 @@ function SignUp({ onSignup }) {
                 <label>Password:</label><br />
                 <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /><br /><br />
                 {error && <div style={{ color: 'red' }}>{error}</div>}<br />
-                <button type="submit">Sign Up</button>
+                <button type="submit" disabled={loading}>Sign Up</button>
             </form>
         </div>
     );
