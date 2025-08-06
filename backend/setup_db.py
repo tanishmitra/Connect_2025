@@ -6,22 +6,38 @@ def setup_login_db():
     conn = sqlite3.connect("details.db")
     cursor = conn.cursor()
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS details (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            password TEXT
-        )
-    """)
+    # Check if 'details' table exists
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='details'")
+    table_exists = cursor.fetchone()
 
-    # Add default login user
+    if table_exists:
+        # Check if last_login column exists
+        cursor.execute("PRAGMA table_info(details)")
+        columns = [col[1] for col in cursor.fetchall()]
+        if 'last_login' not in columns:
+            cursor.execute("ALTER TABLE details ADD COLUMN last_login TEXT")
+            print("Added 'last_login' column to details table.")
+    else:
+        # Create new table with last_login
+        cursor.execute("""
+            CREATE TABLE details (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT,
+                password TEXT,
+                last_login TEXT
+            )
+        """)
+        print("Created new details table with last_login column.")
+
+    # Insert default admin user if not present
     cursor.execute("SELECT * FROM details WHERE username = ?", ("admin",))
     if not cursor.fetchone():
-        cursor.execute("INSERT INTO details (username, password) VALUES (?, ?)", ("admin", "admin123"))
+        cursor.execute("INSERT INTO details (username, password, last_login) VALUES (?, ?, ?)", ("admin", "admin123", ""))
         print("Inserted default login user: admin / admin123")
 
     conn.commit()
     conn.close()
+
 
 # --- Setup Auth DB (auth.db) ---
 def setup_auth_db():
@@ -98,7 +114,15 @@ def setup_auth_db():
 
     print("Auth DB setup complete.")
 
+
 # --- Run both setups ---
 if __name__ == "__main__":
     setup_login_db()
     setup_auth_db()
+
+
+# --- Run both setups ---
+if __name__ == "__main__":
+    setup_login_db()
+    setup_auth_db()
+
