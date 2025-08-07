@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, ForeignKey, select, delete
+from sqlalchemy import create_engine, MetaData, Table, Column, Integer, String, ForeignKey, select, delete, update
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.responses import JSONResponse
 import sqlite3
@@ -9,7 +9,7 @@ from datetime import datetime
 
 app = FastAPI()
 
-# Enable CORS
+# CORS middleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -18,11 +18,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# SQLite engine for auth.db
+# SQLite for auth & site/region/device
 auth_engine = create_engine("sqlite:///auth.db", echo=True)
 metadata = MetaData()
 
-# --- Define tables ---
+# ------------------- DB Table Definitions -------------------
+
 region_table = Table(
     "Region", metadata,
     Column("RegionID", Integer, primary_key=True, autoincrement=True),
@@ -43,12 +44,30 @@ device_table = Table(
     Column("SiteID", Integer, ForeignKey("Site.SiteID", ondelete="CASCADE"), nullable=False)
 )
 
-# Create tables if not exist
+network_element_table = Table(
+    "NetworkElement", metadata,
+    Column("NetworkElementID", Integer, primary_key=True, autoincrement=True),
+    Column("ElementName", String, nullable=False),
+    Column("ElementType", String, nullable=False),
+    Column("IPAddress", String, nullable=False)
+)
+
+# Create all tables
 metadata.create_all(auth_engine)
 
-# --- Pydantic models ---
+# ------------------- Models -------------------
+
 class RegionIn(BaseModel):
     Name: str
+
+class SiteIn(BaseModel):
+    RegionID: int
+    SiteName: str
+    SiteStatus: str = "active"
+
+class SiteUpdateIn(BaseModel):
+    SiteName: str
+    SiteStatus: str
 
 class LoginIn(BaseModel):
     UserName: str
@@ -58,9 +77,19 @@ class SignupIn(BaseModel):
     UserName: str
     UserPassword: str
 
-# ---------- API Endpoints ----------
+class NetworkElementIn(BaseModel):
+    ElementName: str
+    ElementType: str
+    IPAddress: str
 
-@app.post("/nmm/addRegion")
+class NetworkElementUpdate(BaseModel):
+    ElementName: str
+    ElementType: str
+    IPAddress: str
+
+# ------------------- Region APIs -------------------
+
+@app.post("/regions")
 async def add_region(region: RegionIn):
     try:
         with auth_engine.begin() as conn:
@@ -70,7 +99,7 @@ async def add_region(region: RegionIn):
         print("AddRegion failed:", e)
         raise HTTPException(status_code=500, detail="RegionAddFailed")
 
-@app.delete("/nmm/deleteRegion/{region_id}")
+@app.delete("/regions/{region_id}")
 async def delete_region(region_id: int):
     try:
         with auth_engine.begin() as conn:
@@ -82,6 +111,62 @@ async def delete_region(region_id: int):
         print("DeleteRegion failed:", e)
         raise HTTPException(status_code=500, detail="RegionDeleteFailed")
 
+# ------------------- Site APIs -------------------
+
+@app.post("/Sites")
+async def add_site(site: SiteIn):
+    try:
+        with auth_engine.begin() as conn:
+            conn.execute(site_table.insert().values(
+                RegionID=site.RegionID,
+                SiteName=site.SiteName,
+                SiteStatus=site.SiteStatus
+            ))
+        return JSONResponse(content={"message": "SiteAdded"}, status_code=201)
+    except SQLAlchemyError as e:
+        print("AddSite failed:", e)
+        raise HTTPException(status_code=500, detail="SiteAddFailed")
+
+@app.get("/sites")
+async def get_sites():
+    try:
+        with auth_engine.connect() as conn:
+            result = conn.execute(select(site_table)).fetchall()
+            sites = [dict(row._mapping) for row in result]
+        return sites
+    except SQLAlchemyError as e:
+        print("GetSites failed:", e)
+        raise HTTPException(status_code=500, detail="SiteFetchFailed")
+
+@app.put("/sites/{site_id}")
+async def update_site(site_id: int, site: SiteUpdateIn):
+    try:
+        with auth_engine.begin() as conn:
+            result = conn.execute(update(site_table).where(site_table.c.SiteID == site_id).values(
+                SiteName=site.SiteName,
+                SiteStatus=site.SiteStatus
+            ))
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="SiteNotFound")
+        return {"message": "SiteUpdated"}
+    except SQLAlchemyError as e:
+        print("UpdateSite failed:", e)
+        raise HTTPException(status_code=500, detail="SiteUpdateFailed")
+
+@app.delete("/sites/{site_id}")
+async def delete_site(site_id: int):
+    try:
+        with auth_engine.begin() as conn:
+            result = conn.execute(delete(site_table).where(site_table.c.SiteID == site_id))
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="SiteNotFound")
+        return {"message": "SiteDeleted"}
+    except SQLAlchemyError as e:
+        print("DeleteSite failed:", e)
+        raise HTTPException(status_code=500, detail="SiteDeleteFailed")
+
+# ------------------- Auth APIs -------------------
+
 @app.post("/validate")
 async def login(credentials: LoginIn):
     try:
@@ -91,7 +176,6 @@ async def login(credentials: LoginIn):
         user = cursor.fetchone()
 
         if user:
-            # update last_login timestamp
             now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute("UPDATE details SET last_login = ? WHERE username = ?", (now, credentials.UserName))
             conn.commit()
@@ -137,4 +221,61 @@ async def get_last_login(username: str):
         print("Error fetching last login:", e)
         raise HTTPException(status_code=500, detail="FetchFailed")
 
+# ------------------- Network Element APIs -------------------
 
+@app.get("/network-elements")
+async def list_network_elements():
+    try:
+        with auth_engine.connect() as conn:
+            result = conn.execute(select(network_element_table)).fetchall()
+            elements = [dict(row._mapping) for row in result]
+        return elements
+    except SQLAlchemyError as e:
+        print("List Network Elements failed:", e)
+        raise HTTPException(status_code=500, detail="ListFailed")
+
+@app.post("/network-elements")
+async def add_network_element(element: NetworkElementIn):
+    try:
+        with auth_engine.begin() as conn:
+            conn.execute(network_element_table.insert().values(
+                ElementName=element.ElementName,
+                ElementType=element.ElementType,
+                IPAddress=element.IPAddress
+            ))
+        return {"message": "NetworkElementAdded"}
+    except SQLAlchemyError as e:
+        print("Add Network Element failed:", e)
+        raise HTTPException(status_code=500, detail="AddFailed")
+
+@app.put("/network-elements/{element_id}")
+async def update_network_element(element_id: int, element: NetworkElementUpdate):
+    try:
+        with auth_engine.begin() as conn:
+            result = conn.execute(update(network_element_table).where(
+                network_element_table.c.NetworkElementID == element_id
+            ).values(
+                ElementName=element.ElementName,
+                ElementType=element.ElementType,
+                IPAddress=element.IPAddress
+            ))
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="ElementNotFound")
+        return {"message": "NetworkElementUpdated"}
+    except SQLAlchemyError as e:
+        print("Update Network Element failed:", e)
+        raise HTTPException(status_code=500, detail="UpdateFailed")
+
+@app.delete("/network-elements/{element_id}")
+async def delete_network_element(element_id: int):
+    try:
+        with auth_engine.begin() as conn:
+            result = conn.execute(delete(network_element_table).where(
+                network_element_table.c.NetworkElementID == element_id
+            ))
+            if result.rowcount == 0:
+                raise HTTPException(status_code=404, detail="ElementNotFound")
+        return {"message": "NetworkElementDeleted"}
+    except SQLAlchemyError as e:
+        print("Delete Network Element failed:", e)
+        raise HTTPException(status_code=500, detail="DeleteFailed")
